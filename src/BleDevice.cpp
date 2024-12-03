@@ -126,39 +126,68 @@ static const uint8_t _hidReportDescriptor[] = {
 BleDevice::BleDevice(std::string deviceName, std::string deviceManufacturer)
   : hid(0), deviceName(deviceName), deviceManufacturer(deviceManufacturer) {}
 
-void BleDevice::begin(void) {
-  NimBLEDevice::init(deviceName);
-  NimBLEServer* pServer = NimBLEDevice::createServer();
-  pServer->setCallbacks(this);
+bool BleDevice::begin() {
+    try {
+        // Initialize NimBLE
+        NimBLEDevice::init(deviceName);
+        
+        // Create server
+        NimBLEServer* pServer = NimBLEDevice::createServer();
+        pServer->setCallbacks(this);
 
-  hid = new NimBLEHIDDevice(pServer);
-  inputKeyboard = hid->inputReport(KEYBOARD_ID);  // <-- input REPORTID from report map
-  outputKeyboard = hid->outputReport(KEYBOARD_ID);
-  inputMediaKeys = hid->inputReport(MEDIA_KEYS_ID);
-  inputMouse = hid->inputReport(MOUSE_ID);  // <-- input REPORTID from report map
+        // Create HID device
+        hid = new NimBLEHIDDevice(pServer);
+        if (!hid) {
+            Serial.println("Failed to create HID device!");
+            return false;
+        }
 
-  outputKeyboard->setCallbacks(this);
+        // Create input/output reports
+        inputKeyboard = hid->inputReport(KEYBOARD_ID);
+        outputKeyboard = hid->outputReport(KEYBOARD_ID);
+        inputMediaKeys = hid->inputReport(MEDIA_KEYS_ID);
+        inputMouse = hid->inputReport(MOUSE_ID);
 
-  hid->manufacturer()->setValue(deviceManufacturer);
+        if (!inputKeyboard || !outputKeyboard || !inputMediaKeys || !inputMouse) {
+            Serial.println("Failed to create HID reports!");
+            return false;
+        }
 
-  hid->pnp(0x02, 0x05ac, 0x820a, 0x0210);
-  hid->hidInfo(0x00, 0x01);
+        // Set output report callbacks
+        outputKeyboard->setCallbacks(this);
 
-  NimBLESecurity* pSecurity = new NimBLESecurity();
+        // Set manufacturer information
+        hid->manufacturer()->setValue(deviceManufacturer);
 
-  pSecurity->setAuthenticationMode(ESP_LE_AUTH_BOND);
+        // Set HID device information
+        hid->pnp(0x02, 0x05ac, 0x820a, 0x0210);
+        hid->hidInfo(0x00, 0x01);
 
-  hid->reportMap((uint8_t*)_hidReportDescriptor, sizeof(_hidReportDescriptor));
-  hid->startServices();
+        // Set security
+        NimBLESecurity* pSecurity = new NimBLESecurity();
+        pSecurity->setAuthenticationMode(ESP_LE_AUTH_BOND);
 
-  advertising = pServer->getAdvertising();
-  advertising->setAppearance(HID_KEYBOARD);
-  advertising->addServiceUUID(hid->hidService()->getUUID());
-  advertising->setScanResponse(false);
-  advertising->start();
-   hid->setBatteryLevel(100);
+        // Set report map
+        hid->reportMap((uint8_t*)_hidReportDescriptor, sizeof(_hidReportDescriptor));
+        hid->startServices();
 
-  ESP_LOGD(LOG_TAG, "Advertising started!");
+        // Start advertising
+        advertising = pServer->getAdvertising();
+        advertising->setAppearance(HID_KEYBOARD);
+        advertising->addServiceUUID(hid->hidService()->getUUID());
+        advertising->setScanResponse(false);
+        advertising->start();
+
+        // Set battery level
+        hid->setBatteryLevel(100);
+
+        Serial.println("BLE Device initialized successfully");
+        return true;
+
+    } catch (const std::exception& e) {
+        Serial.printf("BLE initialization failed: %s\n", e.what());
+        return false;
+    }
 }
 
 bool BleDevice::isConnected(void) {

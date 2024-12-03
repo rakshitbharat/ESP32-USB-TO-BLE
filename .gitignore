@@ -55,3 +55,4 @@ cmake-build-*/
 
 # Debug files
 *.dSYM/
+ESP32-USB-TO-BLE.ino.cpp

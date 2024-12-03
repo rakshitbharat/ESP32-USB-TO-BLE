@@ -19,7 +19,7 @@ private:
 
 public:
     BleDevice(std::string deviceName = "ESP32 Mouse/Keyboard", std::string deviceManufacturer = "Espressif");
-    void begin(void);
+    bool begin();
     void end(void){};
     void sendKeyboardReport(uint8_t* data, uint8_t len);
     void sendMouseReport(uint8_t* data, uint8_t len);

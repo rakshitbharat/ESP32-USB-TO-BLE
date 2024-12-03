@@ -1,66 +1,78 @@
-//#define DEBUG_ALL
+// Pin definitions must come before including the USB host library
+#define USB_HOST_DP0 22  // D+ for keyboard
+#define USB_HOST_DM0 23  // D- for keyboard
+#define USB_HOST_DP1 16  // D+ for mouse
+#define USB_HOST_DM1 17  // D- for mouse
+#define USB_HOST_DP2 -1
+#define USB_HOST_DM2 -1
+#define USB_HOST_DP3 -1
+#define USB_HOST_DM3 -1
+
+// Power configuration
+#define USB_HOST_RESET_TIME 20  // ms
+#define USB_HOST_POWER_ON_WAIT 100  // ms
+#define USB_HOST_SETTLE_TIME 200  // ms
+
 #define FORCE_TEMPLATED_NOPS
 
 #include "ESP32-USB-Soft-Host.h"
 #include "BleDevice.h"
 
-BleDevice bleDevice; // Initialize an instance of the BleDevice class
+// Add before setup()
+BleDevice bleDevice;
+uint8_t keyboardDevice = 0xFF;
+uint8_t mouseDevice = 0xFF;
 
-// Initialize variables to store the USB device numbers for keyboard and mouse
-uint8_t keyboardDevice = -1;
-uint8_t mouseDevice = -1;
-
-// Callback function called when a USB interface descriptor is detected
 void USB_IfaceDesc_Detect(uint8_t usbNum, int cfgCount, int sIntfCount, void *Intf, size_t len) {
-  // Only check first configuration and interface in the device
-  if (cfgCount == 1 && sIntfCount == 1) {
-    sIntfDesc *sIntf = (sIntfDesc *)Intf;
-    // Determine if the interface protocol indicates a keyboard or a mouse
+  sIntfDesc *sIntf = (sIntfDesc *)Intf;
+  if (sIntf->iClass == 3) {  // HID Class
     if (sIntf->iProto == 1) {
-      keyboardDevice = usbNum; // Assign the USB device number to the keyboard
+      keyboardDevice = usbNum;
     } else if (sIntf->iProto == 2) {
-      mouseDevice = usbNum; // Assign the USB device number to the mouse
+      mouseDevice = usbNum;
     }
   }
 }
 
-// Callback function called when USB data is received
 void USB_Data_Handler(uint8_t usbNum, uint8_t byte_depth, uint8_t *data, uint8_t data_len) {
-  #ifdef DEBUG_ALL
-    // Print debug information if DEBUG_ALL is defined
-    printf("%s data: ", usbNum == mouseDevice ? "Mouse" : "Keyboard");
-    for (int k = 0; k < data_len; k++) {
-      printf("0x%02x ", data[k]);
-    }
-    printf("\n");
-  #endif
-
-  // Check if the USB data belongs to the keyboard or the mouse
-  if (data_len > 4) {
-    #ifdef DEBUG_ALL
-      printf("sendKeyboardReport\n");
-    #endif
-    bleDevice.sendKeyboardReport(data, data_len); // Send keyboard report via BLE
-  } else {
-    #ifdef DEBUG_ALL
-      printf("sendMouseReport\n");
-    #endif
-    bleDevice.sendMouseReport(data, data_len); // Send mouse report via BLE
+  if (usbNum == keyboardDevice) {
+    bleDevice.sendKeyboardReport(data, data_len);
+  } else if (usbNum == mouseDevice) {
+    bleDevice.sendMouseReport(data, data_len);
   }
 }
 
-// Setup function called once at the beginning of the program
 void setup() {
-  // Set callback function for USB interface descriptor detection
+  Serial.begin(115200);
+  Serial.println("\nESP32 USB Host starting up...");
+
+  // Power cycle USB ports
+  pinMode(22, OUTPUT);
+  pinMode(23, OUTPUT);
+  pinMode(16, OUTPUT);
+  pinMode(17, OUTPUT);
+  
+  // Pull all pins low
+  digitalWrite(22, LOW);
+  digitalWrite(23, LOW);
+  digitalWrite(16, LOW);
+  digitalWrite(17, LOW);
+  delay(USB_HOST_RESET_TIME);
+  
+  // Set pins to input with pullup
+  pinMode(22, INPUT_PULLUP);
+  pinMode(23, INPUT_PULLUP);
+  pinMode(16, INPUT_PULLUP);
+  pinMode(17, INPUT_PULLUP);
+  delay(USB_HOST_POWER_ON_WAIT);
+
+  // Configure USB Host
   USH.setOnIfaceDescCb(USB_IfaceDesc_Detect);
-  // Initialize USB Soft Host and set callback function for USB data handling
-  USH.init(USB_Data_Handler);
+  if (!USH.init(USB_Data_Handler)) {
+    Serial.println("USB Host initialization failed!");
+    while (1) delay(100);
+  }
+  Serial.println("USB Host initialized successfully");
 
-  // Begin BLE device communication
-  bleDevice.begin();
-}
-
-// Loop function called repeatedly after setup
-void loop() {
-  vTaskDelete(NULL); // Delete the current task
+  // Rest of your setup code...
 }
