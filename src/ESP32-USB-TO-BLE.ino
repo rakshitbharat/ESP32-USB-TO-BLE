@@ -16,10 +16,32 @@
 #include <Arduino.h>
 #include "ESP32-USB-Soft-Host.h"
 #include "BleDevice.h"
+#include <esp_pm.h>
+#include <esp_wifi.h>
+#include <driver/gpio.h>
+#include <soc/periph_defs.h>
+#include <driver/adc.h>
+#include <esp_bt.h>
 
 BleDevice bleDevice;
 uint8_t keyboardDevice = 0xFF;
 uint8_t mouseDevice = 0xFF;
+
+void disableUnusedPeripherals() {
+    // Disable WiFi
+    esp_wifi_stop();
+    
+    // Disable unused GPIO
+    const int unusedPins[] = {0,1,2,3,4,12,13,14,15,18,19,21,25,26,27,32,33,34,35,36,39};
+    for(int pin : unusedPins) {
+        gpio_set_direction((gpio_num_t)pin, GPIO_MODE_INPUT);
+        gpio_pulldown_dis((gpio_num_t)pin);
+        gpio_pullup_dis((gpio_num_t)pin);
+    }
+
+    // Set CPU to lower frequency
+    setCpuFrequencyMhz(80);
+}
 
 void USB_IfaceDesc_Detect(uint8_t usbNum, int cfgCount, int sIntfCount, void *Intf, size_t len) {
   if (!Intf || len < sizeof(sIntfDesc)) {
@@ -36,10 +58,11 @@ void USB_IfaceDesc_Detect(uint8_t usbNum, int cfgCount, int sIntfCount, void *In
   Serial.printf("  SubClass: %d (0x%02X)\n", sIntf->iSub, sIntf->iSub);
   Serial.printf("  Protocol: %d (0x%02X)\n", sIntf->iProto, sIntf->iProto);
 
-  // Check for HID devices (class 3)
-  if (sIntf->iClass == 3) {  // HID Class
-    if (sIntf->iProto == 1) {
-      Serial.printf("Keyboard detected on USB%d\n", usbNum);
+  // Check for HID devices (class 3) and composite devices (class 0)
+  if (sIntf->iClass == 3 || sIntf->iClass == 0) {
+    // Gaming keyboards might use protocol 0 or 1
+    if (sIntf->iProto == 1 || (sIntf->iProto == 0 && sIntf->iSub == 1)) {
+      Serial.printf("Keyboard interface detected on USB%d\n", usbNum);
       Serial.printf("  SubClass: %d, Protocol: %d\n", sIntf->iSub, sIntf->iProto);
       keyboardDevice = usbNum;
     } else if (sIntf->iProto == 2) {
@@ -73,6 +96,9 @@ void USB_Data_Handler(uint8_t usbNum, uint8_t byte_depth, uint8_t *data, uint8_t
 void setup() {
   Serial.begin(115200);
   Serial.println("\nESP32 USB Host starting up...");
+
+  // Disable unused peripherals
+  disableUnusedPeripherals();
 
   // Power cycle USB ports
   pinMode(22, OUTPUT);
