@@ -90,6 +90,8 @@ void USB_Data_Handler(uint8_t usbNum, uint8_t byte_depth, uint8_t *data, uint8_t
   } else if (usbNum == mouseDevice && data_len > 0) {
     Serial.println("Processing mouse data");
     bleDevice.sendMouseReport(data, data_len);
+  } else {
+    Serial.printf("Data from unknown device USB%d\n", usbNum);
   }
 }
 
