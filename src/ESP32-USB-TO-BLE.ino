@@ -13,12 +13,10 @@
 #define USB_HOST_POWER_ON_WAIT 100  // ms
 #define USB_HOST_SETTLE_TIME 200  // ms
 
-#define FORCE_TEMPLATED_NOPS
-
+#include <Arduino.h>
 #include "ESP32-USB-Soft-Host.h"
 #include "BleDevice.h"
 
-// Add before setup()
 BleDevice bleDevice;
 uint8_t keyboardDevice = 0xFF;
 uint8_t mouseDevice = 0xFF;
@@ -27,17 +25,19 @@ void USB_IfaceDesc_Detect(uint8_t usbNum, int cfgCount, int sIntfCount, void *In
   sIntfDesc *sIntf = (sIntfDesc *)Intf;
   if (sIntf->iClass == 3) {  // HID Class
     if (sIntf->iProto == 1) {
+      Serial.printf("Keyboard detected on USB%d\n", usbNum);
       keyboardDevice = usbNum;
     } else if (sIntf->iProto == 2) {
+      Serial.printf("Mouse detected on USB%d\n", usbNum);
       mouseDevice = usbNum;
     }
   }
 }
 
 void USB_Data_Handler(uint8_t usbNum, uint8_t byte_depth, uint8_t *data, uint8_t data_len) {
-  if (usbNum == keyboardDevice) {
+  if (usbNum == keyboardDevice && data_len > 0) {
     bleDevice.sendKeyboardReport(data, data_len);
-  } else if (usbNum == mouseDevice) {
+  } else if (usbNum == mouseDevice && data_len > 0) {
     bleDevice.sendMouseReport(data, data_len);
   }
 }
@@ -74,5 +74,15 @@ void setup() {
   }
   Serial.println("USB Host initialized successfully");
 
-  // Rest of your setup code...
+  // Initialize BLE
+  Serial.println("Initializing BLE...");
+  if (!bleDevice.begin()) {
+    Serial.println("BLE initialization failed!");
+    while (1) delay(100);
+  }
+  Serial.println("BLE initialized successfully");
+}
+
+void loop() {
+  delay(100);  // Add a small delay to prevent watchdog issues
 }
