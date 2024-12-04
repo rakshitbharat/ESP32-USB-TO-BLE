@@ -51,9 +51,32 @@ void USB_Data_Handler(uint8_t usbNum, uint8_t byte_depth, uint8_t *data, uint8_t
 
 // Setup function called once at the beginning of the program
 void setup() {
-  // Set callback function for USB interface descriptor detection
+  Serial.begin(115200);
+  delay(1000);
+  
+  // Add debug info
+  Serial.println("\nTesting USB connections:");
+  
+  // Test D+ (GPIO 16)
+  pinMode(16, INPUT);
+  Serial.println("\nD+ Line (GPIO 16):");
+  Serial.printf("- Voltage level: %d\n", digitalRead(16));
+  Serial.printf("- Should be HIGH (1) due to 1.5K pull-up to 3.3V\n");
+  
+  // Test D- (GPIO 17)
+  pinMode(17, INPUT);
+  Serial.println("\nD- Line (GPIO 17):");
+  Serial.printf("- Voltage level: %d\n", digitalRead(17));
+  Serial.printf("- Should be LOW (0) due to 15K pull-down to GND\n");
+  
+  // Test GND connections
+  Serial.println("\nChecking connections:");
+  Serial.println("- If D+ is LOW (0): Check 1.5K resistor and 3.3V connection");
+  Serial.println("- If D- is HIGH (1): Check 15K resistor and GND connection");
+  Serial.println("- If both are wrong: Check all GND connections are common\n");
+  
+  // Initialize USB Host
   USH.setOnIfaceDescCb(USB_IfaceDesc_Detect);
-  // Initialize USB Soft Host and set callback function for USB data handling
   USH.init(USB_Data_Handler);
 
   // Begin BLE device communication

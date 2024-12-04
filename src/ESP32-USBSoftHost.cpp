@@ -1,4 +1,3 @@
-
 #include "./ESP32-USBSoftHost.hpp"
 
 #if defined CONFIG_ESP_SYSTEM_MEMPROT_FEATURE || defined FORCE_TEMPLATED_NOPS || defined CONFIG_IDF_TARGET_ESP32S3
